@@ -1,0 +1,15 @@
+Writeup for the Competitive Programming problem, "flatworld GPS"
+
+Problem: we need to find a path through a maze, if there is a path then we return a valid path, otherwise we say theres no path available
+
+----------
+-%%-------
+---%%-----
+%-----%%%%
+----%%%---
+-%%-------
+%---------
+-----%%%%%
+
+The path starts at the top of the array, and can go either straight down, or increment to the left or right by one. 
+
