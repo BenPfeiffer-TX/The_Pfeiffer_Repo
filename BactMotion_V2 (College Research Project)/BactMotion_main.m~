@@ -1,0 +1,114 @@
+%This function is the driving function for BactMotion, a program designed
+%to be inputted TIRF microscopy footage of bacteria swimming around, as
+%well as pre-generated trajectory maps for the bacteria, and returns the 3D
+%orientation of the bacteria along with statistics for their motion
+
+%This is a first attempt at functionalizing the identical program,
+%BactMaskv2. Hopefully functionalizing it will both increase performance
+%and provide easier readability to everyone that isn't the original coder
+%(me)
+%((Ben Pfeiffer))
+%%
+clear
+fprintf(['Welcome to BactMotion: the program.'...
+    ' To begin your automated tour, do nothing \n'])
+filename = 'MotileBacteriaTrackingTrial-002.tif';%'subset1.tif';%
+T=500;
+tic
+
+%%
+%Step 1: load TIFF footage
+tiff_stack = tiffloader(filename,T);
+fprintf('Loading of input footage... Complete \n')
+
+%%
+%Step 1.5: Instantiate global variables
+load('thebiggest-traj'); %'bigtraj2-LT');
+for i = 1 : length(trjR(1,1,:))
+    if length(find(trjR(:,1,i))) < 2
+        trjR(:,:,i) = NaN;
+    end
+end
+%traj=traj.trjR;
+expmaxB = length(trjR(1,1,:));
+newB = cell(expmaxB,length(tiff_stack(1,1,:)));
+fprintf('Global variables... Instantiated \n')
+
+%%
+%Step 2: generate trash and heightmap for each frame
+trash = zeros(length(trjR(1,1,:)),length(tiff_stack(1,1,:)));
+trash(:,:) = NaN;
+[trash,heightmap,B] = trashmapper(filename,T,tiff_stack,trjR,trash);
+fprintf('Trash + heightmap... Generated \n')
+
+%%
+%Step 3: Bin bacteria into proper index, then trim down to save space
+fprintf('Beginning trimming process \n')
+newB = trimmer(newB,trjR,B,tiff_stack,T,trash,expmaxB);
+fprintf('Indexing and trimming... Achieved \n')
+
+%%
+%Step 4: Analysis on each frame
+fprintf('Proceeding with analysis \n')
+[Yangle,Zangle,angularvZ,angularvY,low_loc,high_loc,tempV,C_height, ...
+    C_loc,C_vel,dh] = analyzer(tiff_stack,newB,heightmap,T);
+fprintf('Data... Analyzed \n')
+
+%%
+%Step 5: Do Secondary Analysis by fitting ellipsoids onto data
+fprintf('Starting Secondary Analysis \n')
+% tic
+[Zangle2,Yangle2,C_loc2,C_height2,orient,bactdata] = EllipsFitter(newB,heightmap, ...
+    C_loc,C_height,Zangle,Yangle,T);
+% toc
+fprintf('Ellipsoid fitting... Accomplished \n')
+
+%%
+%Step 5.5: Secondary Analysis didn't fit everything, so we need to have it
+%go through and try to re-fit the fail-to-fits
+fprintf('Re-doing Secondary Analysis for Fail-to-Fits...\n')
+refit = zeros(1,2); % stored as b,t
+ind = 1;
+for t=1:T
+    for b=1:length(newB(:,1))
+        if C_height2(b,t) > 0 && C_height2(b,t) < 0.5
+            refit(ind,:) = [b,t];
+            ind=ind+1;
+        end
+    end
+end
+
+
+
+
+%%
+%Step 6: Making pretty graphs
+fprintf('Creating artistic graphs of the data... \n')
+graphmachine(T,newB,C_height2,C_vel,Zangle2,Yangle2,angularvZ,angularvY);
+
+%%
+%Step 6: ???
+% figure()
+% t=1;
+% imagesc(1:2048,1:2048,heightmap(:,:,t))
+% hold on
+% for i = 1 : length(C_loc(:,t))
+%    if isempty(C_loc{i,t}) == 0
+%        x=C_loc{i,t}(1);
+%        y=C_loc{i,t}(2);
+%        y1=low_loc{i,t}(2);
+%        x1=low_loc{i,t}(1);
+%        y2=high_loc{i,t}(2);
+%        x2=high_loc{i,t}(1);
+%        u=tempV{i,t}(1);
+%        v=tempV{i,t}(2);
+%        scatter(y,x,'red','x')
+%        scatter(y2,x2,'white','*')
+%        quiver(y1,x1,v,u,'white','LineWidth',1)
+%    end
+% end
+%clear heightmap
+
+%%
+%Step 7: Profit
+toc
